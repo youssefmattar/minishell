@@ -11,6 +11,7 @@ int main() {
 
     width = 800;
     height = 600;
+    
     //sf::RenderWindow window(sf::VideoMode(width, height), "minishell");
 
     // 2. Load a font from a file
@@ -61,9 +62,70 @@ int main() {
 
     cursor.setPosition(text.findCharacterPos(displayString.length()));
 
+        if (pipe(pipe_to_child) == -1) {
+            perror("pipe failed");
+            exit(1);
+        }
+        
+
+        if(pipe(pipe_to_parent)==-1){
+            perror("pipe failed");
+            exit(1);
+        }
+        fcntl(pipe_to_parent[0], F_SETFL, O_NONBLOCK);
 
     // 4. The Main Loop
     while (window.isOpen()) {
+        for(int i = 0; i<childPids.size(); i++){//remove terminated child process from vector
+            int status;
+            pid_t result = waitpid(childPids[i], &status, WNOHANG); 
+
+            if (result == 0) {
+                // Child is still running! Proceed with SFML events/rendering.
+            } else if (result > 0) {
+                // Child just finished. Handle it here.
+                
+                std::cout<< "child terminated "<<childPids[i]<<std::endl;
+                childPids.erase(childPids.begin() + i);
+                displayString+=initial;
+                displayString+="c";
+                text.setString(displayString);
+                displayString.pop_back();//delete old cursor
+                cursor.setPosition(text.findCharacterPos(displayString.length()));
+                if (pipe(pipe_to_child) == -1) {
+                    perror("pipe failed");
+                    exit(1);
+                }
+                
+
+                if(pipe(pipe_to_parent)==-1){
+                    perror("pipe failed");
+                    exit(1);
+                }
+                fcntl(pipe_to_parent[0], F_SETFL, O_NONBLOCK);
+
+                break;
+            }
+        }
+
+        /* read from the pipe */
+        // 1. Define the buffer and the control block
+
+        char buffer[128];
+        // read() will now return -1 immediately if there is no data, 
+        // instead of waiting (blocking).
+        int bytesRead = read(pipe_to_parent[0], buffer, sizeof(buffer) - 1);
+
+        if (bytesRead > 0) {
+            buffer[bytesRead] = '\0'; // Null-terminate the string
+            displayString += buffer;  // Only append if we actually got something!
+            //std::cout<<" readta" <<readdta<<std::endl;
+            displayString+="c";
+            text.setString(displayString);
+            displayString.pop_back();//delete old cursor
+            cursor.setPosition(text.findCharacterPos(displayString.length()));
+        }
+
         sf::Event event;
         
         while (window.pollEvent(event)) {
@@ -132,8 +194,14 @@ int main() {
                 else if (event.text.unicode == 13 || event.text.unicode == 10) {
                     displayString += '\n'; 
                     command = getBetween(displayString, initial, "\n", initial.length());
-                    parseExecute(command);
-                    displayString+=initial;
+                    if(childPids.size()==0){
+                        parseExecute(command);
+                    }
+                    else{
+                        char nl = '\n';
+                        write(pipe_to_child[1], &nl, 1);
+                    }
+                    //displayString+=initial;
 
                     
                 }
@@ -147,7 +215,15 @@ int main() {
                         displayString += "\n";         
                     }
                     
-                    displayString += static_cast<char>(event.text.unicode);
+                    char c = static_cast<char>(event.text.unicode);
+                    displayString += c;
+
+                    // SEND THIS CHARACTER TO CHILD (Step 2)
+                    if(childPids.size()>0){//dont add bad data to pipe
+                        write(pipe_to_child[1], &c, 1);
+                    }
+                    
+                     
                 
 
                 }

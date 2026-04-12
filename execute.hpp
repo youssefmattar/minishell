@@ -10,6 +10,10 @@
 #include <queue>
 #include <vector>
 #include <cstring>
+#include <sys/types.h>
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
 
 std::string getTerminalPath() {
     char cwd[PATH_MAX];
@@ -45,7 +49,87 @@ typedef struct Process{
 }Process;
 
 
+void executeSeparatedJobs(std::vector<Process> jobs){
 
+    for(int i = 0; i<jobs.size(); i++){
+        
+
+            pid_t pid;
+            // 1. Create a temporary vector to hold the pointers
+            std::vector<char*> c_args;
+
+            // 2. Fill it with the c_str() pointers from your strings
+            for (auto& s : jobs[i].programAndArgs) {
+                c_args.push_back(const_cast<char*>(s.c_str()));
+            }
+
+            // 3. Add the mandatory NULL terminator
+            c_args.push_back(nullptr);
+
+            if(jobs[i].out != OutputType::pipe){
+                // --- PARENT DEBUG BLOCK ---
+                std::cout << "\n--- FORKING NEW CHILD ---" << std::endl;
+                std::cout << "Command: " << c_args[0] << std::endl;
+                std::cout << "Input Type (Enum): " << (int)jobs[i].in << std::endl;
+                std::cout << "Output Type (Enum): " << (int)jobs[i].out << std::endl;
+
+                // Verify pipes are valid (should be small positive integers like 3, 4, 5...)
+                std::cout << "Pipe to Child FDs:  [" << pipe_to_child[0] << ", " << pipe_to_child[1] << "]" << std::endl;
+                std::cout << "Pipe to Parent FDs: [" << pipe_to_parent[0] << ", " << pipe_to_parent[1] << "]" << std::endl;
+                // --------------------------
+
+                pid = fork();
+                if(pid == 0){ //child
+
+                    if(jobs[i].out == OutputType::fileOverWrite){
+                        int fd = open(jobs[i].outputTarget.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                            std::cout<<"output type fileOverwrite\n";
+                        dup2(fd, STDOUT_FILENO); // Redirect stdout to the file
+                        close(fd);               // Don't need the extra copy of the fd anymore
+                    }else if(jobs[i].out == OutputType::fileAppend){
+                        std::cout<<"output type fileApp\n";
+                        int fd = open(jobs[i].outputTarget.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
+
+                        dup2(fd, STDOUT_FILENO); // Redirect stdout to the file
+                        close(fd);               // Don't need the extra copy of the fd anymore
+                    }else if(jobs[i].out == OutputType::terminal){
+                        std::cout<<"output type terminal\n";
+                        dup2(pipe_to_parent[1], STDOUT_FILENO);
+                    }
+
+                    if(jobs[i].in == InputType::terminal){
+                        std::cout<<"input type terminal\n";
+                        dup2(pipe_to_child[0], STDIN_FILENO);
+                    }
+                    else if(jobs[i].in == InputType::file){
+                        std::cout<<"input type file\n";
+                        int fd = open(jobs[i].inputSource.c_str(), O_RDONLY);
+
+                        dup2(fd, STDIN_FILENO);  // Redirect stdin to come from the file
+                        close(fd);
+                    }
+                    //close(pipe_to_child[0]);
+                    close(pipe_to_child[1]);
+                    close(pipe_to_parent[0]);
+                    //close(pipe_to_parent[1]);
+                    // 4. Use .data() to get the char** that execvp wants
+                    execvp(c_args[0], c_args.data());
+                }
+                else if(pid<0){//error
+
+                }
+                else { /* parent process */
+                   
+                    std::cout<<"parent\n";
+                    close(pipe_to_child[0]);//close read pipe end
+                    close(pipe_to_parent[1]);//close write pipe ends
+                    childPids.push_back(pid);
+                }
+            }    
+        
+       
+    }
+}
 
 
 std::vector<Process> separateJobs(std::vector<std::string> tokens){
@@ -88,105 +172,93 @@ std::vector<Process> separateJobs(std::vector<std::string> tokens){
 
     return job;
 
-    
-    
-    
-
 }
 
 
 
 int parseExecute(std::string commandf){
  
-    std::stringstream ss(commandf); // Initialize with the string
-    std::string part;
-    
-    
-    
-
-    int i = 0;
-
-    ss>>part;
-
-
-
-    if(part=="pwd" && i == 0){
-        char buffer[PATH_MAX];
-
-        if (getcwd(buffer, PATH_MAX) != NULL) {
-            std::cout<<"Current  directory: "<< buffer<<std::endl;
-            displayString+= " current directory: ";
-            displayString+= buffer;
-            displayString+="\n";
-
-        } else {
-            displayString+= "getcwd() error";
-        }
-
-        displayString+= "c";//for cursor
-        text.setString(displayString);
-        displayString.pop_back();//delete old cursor
-    }
-    else if(part == "cd"&& i == 0){
-        ss>>part;
-        std::string targetPath = part;
-        // 1. Handle the "~" shortcut manually
-        if (targetPath == "~" || targetPath.empty()) {
-            targetPath = std::string(getenv("HOME"));
-        }
-
-        // 2. Attempt to change directory
-        if (chdir(targetPath.c_str()) == 0) {
-            displayString += "Directory changed successfully.\n";
-        } else {
-            // 3. Report the specific error (e.g., Folder doesn't exist)
-            displayString += "cd: ";
-            displayString += std::string(strerror(errno));
-            displayString += "\n";
-        }
-        displayString+= "c";//for cursor
-        text.setString(displayString);
-        displayString.pop_back();//delete old cursor  
-
-    }
-    else if(part == "jobs"&& i == 0){
-
-    }
-    else if(part == "fg" && i == 0){
-
-    }
-    else{
+    if(commandf.length()>1){
+        std::stringstream ss(commandf); // Initialize with the string
+        std::string part;
         
-        //parse arguments untill there is nothing or there is > >> < or |
-        std::vector<std::string> tokens;
-        tokens.push_back(part);//command name
-        while(ss>>part){//command arguments and other commands after pipe
-            tokens.push_back(part);
+        
+        
+
+        int i = 0;
+
+        ss>>part;
+
+
+
+        if(part=="pwd" && i == 0){
+            char buffer[PATH_MAX];
+
+            if (getcwd(buffer, PATH_MAX) != NULL) {
+                std::cout<<"Current  directory: "<< buffer<<std::endl;
+                displayString+= " current directory: ";
+                displayString+= buffer;
+                displayString+="\n";
+
+            } else {
+                displayString+= "getcwd() error";
+            }
+
+            displayString+= "c";//for cursor
+            text.setString(displayString);
+            displayString.pop_back();//delete old cursor
         }
+        else if(part == "cd"&& i == 0){
+            ss>>part;
+            std::string targetPath = part;
+            // 1. Handle the "~" shortcut manually
+            if (targetPath == "~" || targetPath.empty()) {
+                targetPath = std::string(getenv("HOME"));
+            }
 
-
-
-        /*
-        if(part == "|"){
+            // 2. Attempt to change directory
+            if (chdir(targetPath.c_str()) == 0) {
+                displayString += "Directory changed successfully.\n";
+            } else {
+                // 3. Report the specific error (e.g., Folder doesn't exist)
+                displayString += "cd: ";
+                displayString += std::string(strerror(errno));
+                displayString += "\n";
+            }
+            displayString+= "c";//for cursor
+            text.setString(displayString);
+            displayString.pop_back();//delete old cursor  
 
         }
-        else if(part == ">"){
+        else if(part == "jobs"&& i == 0){
 
         }
-        else if(part == ">>"){
+        else if(part == "fg" && i == 0){
 
         }
-        else if(part == "<"){
+        else{
             
-        }
-        else if(part == "&"){
+            //parse arguments untill there is nothing or there is > >> < or |
+            std::vector<std::string> tokens;
+            tokens.push_back(part);//command name
+            while(ss>>part){//tokens
+                tokens.push_back(part);
+            }
+
+            executeSeparatedJobs(separateJobs(tokens));
+
+
+
+
 
         }
-        */
-
-
-
-    }
+    }else{
+        std::cout<<"invalid command\n";
+        initial = "shell:";
+        initial += getTerminalPath();
+        initial += ">";
+        displayString += initial;
+    }    
 
     
 

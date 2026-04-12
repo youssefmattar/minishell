@@ -1,0 +1,14 @@
+execute.hpp
+globalVars.hpp
+main.cpp
+sfml-app
+strhelp.hpp
+test.txt
+VT323-Regular.ttf
+execute.hpp
+globalVars.hpp
+main.cpp
+sfml-app
+strhelp.hpp
+test.txt
+VT323-Regular.ttf
