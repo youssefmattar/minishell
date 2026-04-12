@@ -4,6 +4,7 @@
 
     unsigned int width = 800;
     unsigned int height = 600;
+    sf::RenderWindow window(sf::VideoMode(width, height), "minishell");
     unsigned short charSize = 24;
     std::string initial = "shell> ";
     std::string displayString = initial;

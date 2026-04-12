@@ -11,7 +11,7 @@ int main() {
 
     width = 800;
     height = 600;
-    sf::RenderWindow window(sf::VideoMode(width, height), "minishell");
+    //sf::RenderWindow window(sf::VideoMode(width, height), "minishell");
 
     // 2. Load a font from a file
     sf::Font font;

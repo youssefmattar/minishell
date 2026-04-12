@@ -36,16 +36,63 @@ std::string getTerminalPath() {
 enum class OutputType{terminal, pipe, fileOverWrite, fileAppend};
 enum class InputType{terminal, pipe, file};
 typedef struct Process{
+    int pid;
     std::vector<std::string> programAndArgs;
     std::string inputSource;  // Path to file if InputType is file
     std::string outputTarget; // Path to file if OutputType is file*
     OutputType out;
     InputType in;
-};
+}Process;
 
-/*std::string singleCommandexecuter(std::vector commandAndArgsParam, int returnValue){
+
+
+
+
+std::vector<Process> separateJobs(std::vector<std::string> tokens){
     
-}*/
+    
+    std::vector<Process> job;
+    
+    
+    Process p;
+    p.in = InputType::terminal; // Default
+    p.out = OutputType::terminal; //default
+    for(int i = 0; i< tokens.size(); i++){
+        if(tokens[i]=="<"){
+            p.in = InputType::file;
+            p.inputSource = tokens[++i];
+        }
+        else if(tokens[i]== ">"){
+            p.out = OutputType::fileOverWrite;
+            p.outputTarget = tokens[++i];
+        }
+        else if(tokens[i]== ">>"){
+            p.out = OutputType::fileAppend;
+            p.outputTarget = tokens[++i];
+        }
+        else if(tokens[i]== "|"){
+            p.out = OutputType::pipe;
+            job.push_back(p);
+            
+            // Reset for the next process in the pipe chain
+            p = Process(); 
+            p.in = InputType::pipe;
+        }
+        else {
+            p.programAndArgs.push_back(tokens[i]);
+        }
+        
+    }
+    job.push_back(p); // Push the last (or only) process
+
+
+    return job;
+
+    
+    
+    
+
+}
 
 
 
@@ -54,98 +101,93 @@ int parseExecute(std::string commandf){
     std::stringstream ss(commandf); // Initialize with the string
     std::string part;
     
-    //std::vector<std::string> programAndArgs;
+    
     
 
     int i = 0;
 
-    while(ss>>part){
+    ss>>part;
 
 
 
-        if(part=="pwd" && i == 0){
-            char buffer[PATH_MAX];
+    if(part=="pwd" && i == 0){
+        char buffer[PATH_MAX];
 
-            if (getcwd(buffer, PATH_MAX) != NULL) {
-                std::cout<<"Current  directory: "<< buffer<<std::endl;
-                displayString+= " current directory: ";
-                displayString+= buffer;
-                displayString+="\n";
+        if (getcwd(buffer, PATH_MAX) != NULL) {
+            std::cout<<"Current  directory: "<< buffer<<std::endl;
+            displayString+= " current directory: ";
+            displayString+= buffer;
+            displayString+="\n";
 
-            } else {
-                displayString+= "getcwd() error";
-            }
-
-            displayString+= "c";//for cursor
-            text.setString(displayString);
-            displayString.pop_back();//delete old cursor
-
-            //there is no -1 because text dont know that we removed the c from displayString 
-            // so there is still 'c' in text
-            /*
-            sf::Vector2f cursorPOS = text.findCharacterPos(displayString.length());
-            cursor.setPosition(cursorPOS);
-            std::cout<<"cursor: "<<cursorPOS.x << " " << cursorPOS.y<<std::endl;*/
+        } else {
+            displayString+= "getcwd() error";
         }
-        else if(part == "cd"&& i == 0){
-            ss>>part;
-            std::string targetPath = part;
-            // 1. Handle the "~" shortcut manually
-            if (targetPath == "~" || targetPath.empty()) {
-                targetPath = std::string(getenv("HOME"));
-            }
 
-            // 2. Attempt to change directory
-            if (chdir(targetPath.c_str()) == 0) {
-                displayString += "Directory changed successfully.\n";
-            } else {
-                // 3. Report the specific error (e.g., Folder doesn't exist)
-                displayString += "cd: ";
-                displayString += std::string(strerror(errno));
-                displayString += "\n";
-            }
-            displayString+= "c";//for cursor
-            text.setString(displayString);
-            displayString.pop_back();//delete old cursor
+        displayString+= "c";//for cursor
+        text.setString(displayString);
+        displayString.pop_back();//delete old cursor
+    }
+    else if(part == "cd"&& i == 0){
+        ss>>part;
+        std::string targetPath = part;
+        // 1. Handle the "~" shortcut manually
+        if (targetPath == "~" || targetPath.empty()) {
+            targetPath = std::string(getenv("HOME"));
+        }
 
-            //there is no -1 because text dont know that we removed the c from displayString 
-            // so there is still 'c' in text
-            /*sf::Vector2f cursorPOS = text.findCharacterPos(displayString.length());
-            cursor.setPosition(cursorPOS);
-            std::cout<<"cursor: "<<cursorPOS.x << " " << cursorPOS.y<<std::endl;*/
+        // 2. Attempt to change directory
+        if (chdir(targetPath.c_str()) == 0) {
+            displayString += "Directory changed successfully.\n";
+        } else {
+            // 3. Report the specific error (e.g., Folder doesn't exist)
+            displayString += "cd: ";
+            displayString += std::string(strerror(errno));
+            displayString += "\n";
+        }
+        displayString+= "c";//for cursor
+        text.setString(displayString);
+        displayString.pop_back();//delete old cursor  
+
+    }
+    else if(part == "jobs"&& i == 0){
+
+    }
+    else if(part == "fg" && i == 0){
+
+    }
+    else{
+        
+        //parse arguments untill there is nothing or there is > >> < or |
+        std::vector<std::string> tokens;
+        tokens.push_back(part);//command name
+        while(ss>>part){//command arguments and other commands after pipe
+            tokens.push_back(part);
+        }
+
+
+
+        /*
+        if(part == "|"){
 
         }
-        else if(part == "jobs"&& i == 0){
+        else if(part == ">"){
 
         }
-        else if(part == "fg" && i == 0){
+        else if(part == ">>"){
 
         }
-        else{
-           
-
-            if(part == "&"){
-
-            }
-            else if(part == "|"){
-
-            }
-            else if(part == ">"){
-
-            }
-            else if(part == ">>"){
-
-            }
-            else if(part == "<"){
-                
-            }
-            else{
-
-            }
+        else if(part == "<"){
             
         }
-        i++;
+        else if(part == "&"){
+
+        }
+        */
+
+
+
     }
+
     
 
     initial = "shell:";
