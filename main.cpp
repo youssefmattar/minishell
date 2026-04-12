@@ -17,7 +17,8 @@ int main() {
 
     // 3. Create and configure the text object
 
-    std::string displayString = "shell> ";
+    std::string initial = "shell> ";
+    std::string displayString = initial;
     sf::Text text;
     text.setFont(font); 
     text.setString(displayString);
@@ -34,11 +35,14 @@ int main() {
     // 1. Setup the cursor shape
     sf::RectangleShape cursor(sf::Vector2f(10.f, 26.f)); // Width of 2px, height of 26px
     cursor.setFillColor(sf::Color::White);
-    sf::Vector2f cursorPOS = text.findCharacterPos(displayString.length()-1);
+    sf::Vector2f cursorPOS = text.findCharacterPos(displayString.length());
     cursor.setPosition(cursorPOS);
 
 
     int scrollAmount = 0;
+
+    std::string command="0";
+
     // 4. The Main Loop
     while (window.isOpen()) {
         sf::Event event;
@@ -99,34 +103,42 @@ int main() {
             if (event.type == sf::Event::TextEntered) {
                 // 1. Handle Backspace (Unicode 8)
                 if (event.text.unicode == 8) {
-                    if (displayString.length() > 7) { // Don't delete the "Type: " prefix
+                    if (displayString.length() > initial.length()) { // Don't delete the "Type: " prefix
                         displayString.pop_back();
                     }
                 }
 
                 //2. handle pressing enter
                 else if (event.text.unicode == 13 || event.text.unicode == 10) {
-                    displayString.pop_back();//delete old cursor
-                    displayString += '\n';
-                    displayString+= "c";//for cursor
-                    text.setString(displayString);
-                    
+                    displayString += '\n';   
                 }
 
                 // 3. Handle Printable Characters (Unicode < 128 for standard ASCII)
                 else if (event.text.unicode < 128) {
-                    displayString.pop_back();//delete old cursor
+                    size_t lastNewlinePos = displayString.find_last_of('\n');
+
+                    //dont let text go off screen
+                    if (text.getGlobalBounds().width > width-30) {
+                        displayString += "\n";         
+                    }
+                    
                     displayString += static_cast<char>(event.text.unicode);
-                    displayString+= "c";
+                
 
                 }
+
+                
 
 
 
                 // 3. Update the text object with the new string
+                displayString+= "c";//for cursor
                 text.setString(displayString);
+                displayString.pop_back();//delete old cursor
 
-                sf::Vector2f cursorPOS = text.findCharacterPos(displayString.length()-1);
+                //there is no -1 because text dont know that we removed the c from displayString 
+                // so there is still 'c' in text
+                sf::Vector2f cursorPOS = text.findCharacterPos(displayString.length());
                 cursor.setPosition(cursorPOS);
                 std::cout<<"cursor: "<<cursorPOS.x << " " << cursorPOS.y<<std::endl;
                 
