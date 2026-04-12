@@ -1,11 +1,16 @@
 #include <SFML/Graphics.hpp>
 #include <iostream>
+#include <string>
+#include "globalVars.hpp"
+#include "strhelp.hpp"
+#include "execute.hpp"
+
 
 int main() {
     // 1. Create a window (Width, Height, Title)
 
-    unsigned int width = 800;
-    unsigned int height = 600;
+    width = 800;
+    height = 600;
     sf::RenderWindow window(sf::VideoMode(width, height), "minishell");
 
     // 2. Load a font from a file
@@ -17,12 +22,12 @@ int main() {
 
     // 3. Create and configure the text object
 
-    std::string initial = "shell> ";
-    std::string displayString = initial;
-    sf::Text text;
+    initial = "shell> ";
+    displayString = initial;
+    //in globalvrs
     text.setFont(font); 
     text.setString(displayString);
-    unsigned short charSize = 24;
+    charSize = 24;
     text.setCharacterSize(charSize); // in pixels
     text.setFillColor(sf::Color::Green);
     text.setStyle(sf::Text::Regular);
@@ -33,7 +38,7 @@ int main() {
 
 
     // 1. Setup the cursor shape
-    sf::RectangleShape cursor(sf::Vector2f(10.f, 26.f)); // Width of 2px, height of 26px
+    //in golbalvrs
     cursor.setFillColor(sf::Color::White);
     sf::Vector2f cursorPOS = text.findCharacterPos(displayString.length());
     cursor.setPosition(cursorPOS);
@@ -41,11 +46,26 @@ int main() {
 
     int scrollAmount = 0;
 
-    std::string command="0";
+    std::string command="";
+
+    initial = "shell:";
+    initial += getTerminalPath();
+    initial += ">";
+    displayString = initial;
+    displayString+= "c";//for cursor
+    text.setString(displayString);
+    displayString.pop_back();//delete old cursor
+
+    //there is no -1 because text dont know that we removed the c from displayString 
+    // so there is still 'c' in text
+
+    cursor.setPosition(text.findCharacterPos(displayString.length()));
+
 
     // 4. The Main Loop
     while (window.isOpen()) {
         sf::Event event;
+        
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed){
                 window.close();
@@ -110,7 +130,12 @@ int main() {
 
                 //2. handle pressing enter
                 else if (event.text.unicode == 13 || event.text.unicode == 10) {
-                    displayString += '\n';   
+                    displayString += '\n'; 
+                    command = getBetween(displayString, initial, "\n", initial.length());
+                    parseExecute(command);
+                    displayString+=initial;
+
+                    
                 }
 
                 // 3. Handle Printable Characters (Unicode < 128 for standard ASCII)
