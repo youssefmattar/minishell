@@ -63,6 +63,10 @@ typedef struct ProcessBack{
     int pipe_to_child[2]; // Global: [0] is read, [1] is write
     int pipe_to_parent[2]; // Global: [0] is read, [1] is write
 
+    //sudo apt-get install libsfml-dev
+    //compile with
+    //  g++ main.cpp -o sfml-app -lsfml-graphics -lsfml-window -lsfml-system
+
 
 
 #endif
