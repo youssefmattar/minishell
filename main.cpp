@@ -159,7 +159,7 @@ int main() {
 
                 if (event.key.code == sf::Keyboard::PageUp) {
                     if(scrollAmount>0){
-                        scrollAmount-=4;
+                        scrollAmount-=10;
                     
                         sf::FloatRect visibleArea(0.f, scrollAmount, width, height);
                     
@@ -172,7 +172,7 @@ int main() {
                    
                 }
                 else if (event.key.code == sf::Keyboard::PageDown) {
-                    scrollAmount+=4;
+                    scrollAmount+=10;
                     sf::FloatRect visibleArea(0.f, scrollAmount, width, height);
                 
                     // 2. Apply the view to the window
@@ -193,7 +193,8 @@ int main() {
             if (event.type == sf::Event::TextEntered) {
                 // 1. Handle Backspace (Unicode 8)
                 if (event.text.unicode == 8) {
-                    if (displayString.length() > initial.length()) { // Don't delete the "Type: " prefix
+                    int initial_pos = displayString.rfind(initial);
+                    if (displayString.length() > initial_pos + initial.length()) { // Don't delete the "Type: " prefix
                         displayString.pop_back();
                     }
                 }
