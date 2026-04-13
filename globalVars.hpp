@@ -1,5 +1,5 @@
 #ifndef _GLOBAL_VARIABLES_
-#define _GLOBAL_VARIABLES_
+#define _GLOBAL_VARIABLES_ //defined only once for whole program
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <iostream>
@@ -10,13 +10,15 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <queue>
-
 #include <cstring>
 #include <fcntl.h>  // File Control Definitions
 #include <sys/wait.h>
 #include <aio.h>
 #include <sys/types.h>
 #include <signal.h>
+
+//global variables
+
 
 enum class OutputType{terminal, pipe, fileOverWrite, fileAppend};
 enum class InputType{terminal, pipe, file, background};
@@ -55,6 +57,8 @@ typedef struct ProcessBack{
 
     std::vector<pid_t> childPids;//foreground
     std::vector<ProcessBack> childPidsBackground;
+    std::vector<std::string> prevcomm;
+    int prevcommIndex = 0;
 
     int pipe_to_child[2]; // Global: [0] is read, [1] is write
     int pipe_to_parent[2]; // Global: [0] is read, [1] is write

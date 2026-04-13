@@ -48,7 +48,7 @@ int main() {
     int scrollAmount = 0;
 
     std::string command="";
-
+    //prepare initial string
     initial = "shell:";
     initial += getTerminalPath();
     initial += ">";
@@ -62,21 +62,26 @@ int main() {
 
     cursor.setPosition(text.findCharacterPos(displayString.length()));
 
-        if (pipe(pipe_to_child) == -1) {
-            perror("pipe failed");
-            exit(1);
-        }
-        
+    //initialize pipes for first use
+    if (pipe(pipe_to_child) == -1) {
+        perror("pipe failed");
+        exit(1);
+    }
+    
 
-        if(pipe(pipe_to_parent)==-1){
-            perror("pipe failed");
-            exit(1);
-        }
-        fcntl(pipe_to_parent[0], F_SETFL, O_NONBLOCK);
+    if(pipe(pipe_to_parent)==-1){
+        perror("pipe failed");
+        exit(1);
+    }
+    //non bloacking
+    fcntl(pipe_to_parent[0], F_SETFL, O_NONBLOCK);
+    
 
     // 4. The Main Loop
     while (window.isOpen()) {
-        for(int i = 0; i<childPids.size(); i++){//remove terminated child process from vector
+
+        //remove terminated child process from vector
+        for(int i = 0; i<childPids.size(); i++){
             int status;
             pid_t result = waitpid(childPids[i], &status, WNOHANG); 
 
@@ -86,11 +91,15 @@ int main() {
                 // Child just finished. Handle it here.
                 
                 std::cout<< "child terminated "<<childPids[i]<<std::endl;
+                //close old pipes
                 close(pipe_to_child[0]);
                 close(pipe_to_child[1]);
                 close(pipe_to_parent[0]);
                 close(pipe_to_parent[1]);
+
+                //remove from vector
                 childPids.erase(childPids.begin() + i);
+
                 if(childPids.size() < 1){//not to write initial more than one time
                     displayString+=initial;
                     displayString+="c";
@@ -104,13 +113,13 @@ int main() {
             }
         }
 
-        for(int i = 0; i<childPidsBackground.size(); i++){//read data from background processes
+        //read data from background processes pipe to parent
+        for(int i = 0; i<childPidsBackground.size(); i++){
            
             // 1. Define the buffer and the control block
 
             char buffer[256];
-            // read() will now return -1 immediately if there is no data, 
-            // instead of waiting (blocking).
+            
             int bytesRead = read(childPidsBackground[i].pipe_to_parent[0], buffer, sizeof(buffer) - 1);
 
             if (bytesRead > 0) {
@@ -125,6 +134,7 @@ int main() {
             } 
         }
 
+        //remove terminated child process from vector
         for(int i = 0; i<childPidsBackground.size(); i++){//remove terminated child process from vector
             int status;
             pid_t result = waitpid(childPidsBackground[i].pid, &status, WNOHANG); 
@@ -137,8 +147,7 @@ int main() {
                 std::cout<< "background child terminated "<<childPidsBackground[i].pid<<std::endl;
 
                 char buffer[2];
-                // read() will now return -1 immediately if there is no data, 
-                // instead of waiting (blocking).
+                
 
                 //finish unread data
                 int bytesRead = 0;
@@ -163,11 +172,13 @@ int main() {
                 text.setString(displayString);
                 cursor.setPosition(text.findCharacterPos(displayString.length()));
 
-
+                //close old pipes
                 close(childPidsBackground[i].pipe_to_child[0]);
                 close(childPidsBackground[i].pipe_to_child[1]);
                 close(childPidsBackground[i].pipe_to_parent[0]);
                 close(childPidsBackground[i].pipe_to_parent[1]);
+
+                //remove child from vector
                 childPidsBackground.erase(childPidsBackground.begin() + i);
                 
                 
@@ -175,7 +186,7 @@ int main() {
             }
         }
 
-        /* read from the pipe */
+        /* read from the pipe for initially foreground processes*/
         // 1. Define the buffer and the control block
 
         char buffer[128];
@@ -197,6 +208,7 @@ int main() {
 
         sf::Event event;
         
+        //see events like keyboard key press
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed){
                 window.close();
@@ -217,13 +229,18 @@ int main() {
 
             //keyboard events
             if (event.type == sf::Event::KeyPressed) {
+                
+                //press esc key
                 if (event.key.code == sf::Keyboard::Escape) {
                     window.close();
                 }
+                
+                //press space key for testing
                 if (event.key.code == sf::Keyboard::Space) {
                     std::cout << "Space bar pressed once!" << std::endl;
                 }
 
+                //press pageup key for scrolling
                 if (event.key.code == sf::Keyboard::PageUp) {
                     if(scrollAmount>0){
                         scrollAmount-=10;
@@ -238,6 +255,7 @@ int main() {
                     
                    
                 }
+                //press pagedown key for scrolling
                 else if (event.key.code == sf::Keyboard::PageDown) {
                     scrollAmount+=10;
                     sf::FloatRect visibleArea(0.f, scrollAmount, width, height);
@@ -247,15 +265,55 @@ int main() {
                     std::cout<<"scroll amount "<< scrollAmount<<std::endl;
                 }
 
+                //press up arrow for history
+                else if (event.key.code == sf::Keyboard::Up) {
+                    size_t lastLetterInitial= displayString.rfind(initial) + initial.size();
+                    if(prevcomm.size()>0 && prevcommIndex < prevcomm.size() && prevcommIndex >-1 ){
+                        
+                        displayString.erase(lastLetterInitial, displayString.length()-1);
+                        displayString += prevcomm[prevcommIndex];
+                        text.setString(displayString);
+                        cursor.setPosition(text.findCharacterPos(displayString.length()));
+                        prevcommIndex--;
+                    }else{
+                        
+                        prevcommIndex = 0;
+                        
+                        displayString.erase(lastLetterInitial, displayString.length()-1);
+                        text.setString(displayString);
+                    }
+                }
+
+                else if (event.key.code == sf::Keyboard::Down) {
+                    size_t lastLetterInitial= displayString.rfind(initial) + initial.size();
+                    if(prevcomm.size()>0 && prevcommIndex < prevcomm.size() && prevcommIndex >-1 ){
+                        
+                        displayString.erase(lastLetterInitial, displayString.length()-1);
+                        displayString += prevcomm[prevcommIndex];
+                        text.setString(displayString);
+                        cursor.setPosition(text.findCharacterPos(displayString.length()));
+
+                        prevcommIndex++;
+                    }else{
+                        prevcommIndex = prevcomm.size() -1;
+                        displayString.erase(lastLetterInitial, displayString.length()-1);
+                        text.setString(displayString);
+                    }
+                }
+
+                //ctrl + c kill signal
                 if (event.key.code == sf::Keyboard::C && event.key.control) {//kill signal
                     // Success! Ctrl + C was pressed.
+
+                    //kill foreground process if exist
                     if(childPids.size()>0){
                         kill(childPids[0], SIGTERM);
                     }
 
-                    //handle processes that was in background
+                    //handle processes that was in background but is foreground now
                     for(int i = 0; i<childPidsBackground.size(); i++){
 
+                        //check which process is foreground
                         if(childPidsBackground[i].inputEnable == 1){
                             kill(childPidsBackground[i].pid, SIGTERM);
                         }
@@ -266,6 +324,7 @@ int main() {
 
             // Handle typing
             if (event.type == sf::Event::TextEntered) {
+                
                 // 1. Handle Backspace (Unicode 8)
                 if (event.text.unicode == 8) {
                     int initial_pos = displayString.rfind(initial);
@@ -277,10 +336,26 @@ int main() {
                 //2. handle pressing enter
                 else if (event.text.unicode == 13 || event.text.unicode == 10) {
                     displayString += '\n'; 
+                    
                     command = getBetween(displayString, initial, "\n", initial.length());
-                    if(childPids.size()==0){
+                    //if there is no foreground process its a command
+                    bool foreground = 0;
+                    //write input to background process if came back to foreground
+                    for(int i = 0; i<childPidsBackground.size(); i++){
+
+                        if(childPidsBackground[i].inputEnable == 1){
+                            char nl = '\n';
+                            write(childPidsBackground[i].pipe_to_child[1], &nl, 1);
+                            foreground = 1;
+                        }
+                    }
+
+                    if(childPids.size()==0 && foreground == 0){
+                        prevcomm.push_back(std::string(command.substr(0, command.size() - 1)));
+                        prevcommIndex = prevcomm.size()-1;
                         parseExecute(command);
                     }
+                    //else if pass it to process stdin
                     else if(childPids.size() == 1){
                         char nl = '\n';
                         write(pipe_to_child[1], &nl, 1);
@@ -314,9 +389,6 @@ int main() {
                             write(childPidsBackground[i].pipe_to_child[1], &c, 1);
                         }
                     }
-                    
-                     
-                
 
                 }
 
