@@ -319,7 +319,11 @@ int parseExecute(std::string commandf){
             displayString+= "c";//for cursor
             text.setString(displayString);
             displayString.pop_back();//delete old cursor
-        }
+            initial = "shell:";
+            initial += getTerminalPath();
+            initial += ">";
+            displayString += initial;
+            }
         else if(part == "cd"&& i == 0){
             ss>>part;
             std::string targetPath = part;
@@ -339,7 +343,11 @@ int parseExecute(std::string commandf){
             }
             displayString+= "c";//for cursor
             text.setString(displayString);
-            displayString.pop_back();//delete old cursor  
+            displayString.pop_back();//delete old cursor 
+            initial = "shell:";
+            initial += getTerminalPath();
+            initial += ">";
+            displayString += initial; 
 
         }
         else if(part == "jobs"&& i == 0){
@@ -377,6 +385,7 @@ int parseExecute(std::string commandf){
     initial = "shell:";
     initial += getTerminalPath();
     initial += ">";
+
 
     return 0;
 
