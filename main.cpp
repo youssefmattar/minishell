@@ -87,23 +87,25 @@ int main() {
                 
                 std::cout<< "child terminated "<<childPids[i]<<std::endl;
                 childPids.erase(childPids.begin() + i);
-                displayString+=initial;
-                displayString+="c";
-                text.setString(displayString);
-                displayString.pop_back();//delete old cursor
-                cursor.setPosition(text.findCharacterPos(displayString.length()));
-                if (pipe(pipe_to_child) == -1) {
-                    perror("pipe failed");
-                    exit(1);
-                }
+                if(childPids.size() < 1){//not to write initial more than one time
+                    displayString+=initial;
+                    displayString+="c";
+                    text.setString(displayString);
+                    displayString.pop_back();//delete old cursor
+                    cursor.setPosition(text.findCharacterPos(displayString.length()));
                 
+                    if (pipe(pipe_to_child) == -1) {
+                        perror("pipe failed");
+                        exit(1);
+                    }
+                    
 
-                if(pipe(pipe_to_parent)==-1){
-                    perror("pipe failed");
-                    exit(1);
+                    if(pipe(pipe_to_parent)==-1){
+                        perror("pipe failed");
+                        exit(1);
+                    }
+                    fcntl(pipe_to_parent[0], F_SETFL, O_NONBLOCK);
                 }
-                fcntl(pipe_to_parent[0], F_SETFL, O_NONBLOCK);
-
                 break;
             }
         }

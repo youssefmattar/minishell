@@ -48,13 +48,14 @@ typedef struct Process{
     InputType in;
 }Process;
 
-
+int pipefds[2];//for |
 void executeSeparatedJobs(std::vector<Process> jobs){
 
     for(int i = 0; i<jobs.size(); i++){
         
 
             pid_t pid;
+            pid_t pid2;
             // 1. Create a temporary vector to hold the pointers
             std::vector<char*> c_args;
 
@@ -98,11 +99,11 @@ void executeSeparatedJobs(std::vector<Process> jobs){
                     }
 
                     if(jobs[i].in == InputType::terminal){
-                        std::cout<<"input type terminal\n";
+                        //std::cout<<"input type terminal\n";
                         dup2(pipe_to_child[0], STDIN_FILENO);
                     }
                     else if(jobs[i].in == InputType::file){
-                        std::cout<<"input type file\n";
+                        //std::cout<<"input type file\n";
                         int fd = open(jobs[i].inputSource.c_str(), O_RDONLY);
 
                         dup2(fd, STDIN_FILENO);  // Redirect stdin to come from the file
@@ -113,10 +114,14 @@ void executeSeparatedJobs(std::vector<Process> jobs){
                     close(pipe_to_parent[0]);
                     //close(pipe_to_parent[1]);
                     // 4. Use .data() to get the char** that execvp wants
-                    execvp(c_args[0], c_args.data());
+                    int err = execvp(c_args[0], c_args.data());
+                    if (err){
+                        std:: cout<< "exec failed "<< strerror(errno)<<std::endl;
+                        _exit(1);
+                    }
                 }
                 else if(pid<0){//error
-
+                    std::cout<<"error";
                 }
                 else { /* parent process */
                    
@@ -125,7 +130,114 @@ void executeSeparatedJobs(std::vector<Process> jobs){
                     close(pipe_to_parent[1]);//close write pipe ends
                     childPids.push_back(pid);
                 }
-            }    
+            } 
+            else  if(jobs[i].out == OutputType::pipe && jobs[i+1].in == InputType::pipe){
+                pipe(pipefds);
+                // 1. Create a temporary vector to hold the pointers
+                std::vector<char*> c_args2;
+
+                // 2. Fill it with the c_str() pointers from your strings
+                for (auto& s : jobs[i+1].programAndArgs) {
+                    c_args2.push_back(const_cast<char*>(s.c_str()));
+                }
+
+                // 3. Add the mandatory NULL terminator
+                c_args2.push_back(nullptr);
+
+                pid = fork();
+                if(pid == 0){//child 1 process
+                    if(jobs[i].in == InputType::terminal){
+                            //std::cout<<"input type terminal\n";
+                        dup2(pipe_to_child[0], STDIN_FILENO);
+                        //close(pipe_to_child[1]);
+                    }
+                    else if(jobs[i].in == InputType::file){
+                        //std::cout<<"input type file\n";
+                        int fd = open(jobs[i].inputSource.c_str(), O_RDONLY);
+
+                        dup2(fd, STDIN_FILENO);  // Redirect stdin to come from the file
+                        close(fd);
+                    }
+
+                    // Child 1: Write side (e.g., "ls")
+                    dup2(pipefds[1], STDOUT_FILENO); // stdout -> pipe write
+                    close(pipefds[0]); // Close unused read end
+                    close(pipefds[1]); 
+
+                    close(pipe_to_child[1]);
+                    close(pipe_to_parent[1]);
+                    //close(pipe_to_parent[1]);
+                    // 4. Use .data() to get the char** that execvp wants
+                    int err = execvp(c_args[0], c_args.data());
+                    if (err){
+                        std:: cout<< "exec failed "<< strerror(errno)<<std::endl;
+                        _exit(1);
+
+                    }
+
+
+                }
+                else if(pid < 0){//error
+
+                }
+                else{//parent
+                    std::cout<<"parent\n";
+                    close(pipe_to_child[0]);//close read pipe end
+                    //close(pipe_to_parent[1]);//close write pipe ends
+                    //close(pipefds[1]);
+                    childPids.push_back(pid);
+                }
+                i++;
+                pid2 = fork();
+
+                if(pid2 == 0){//child 2
+                    if(jobs[i].out == OutputType::fileOverWrite){
+                        int fd = open(jobs[i].outputTarget.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                            std::cout<<"output type fileOverwrite\n";
+                        dup2(fd, STDOUT_FILENO); // Redirect stdout to the file
+                        close(fd);               // Don't need the extra copy of the fd anymore
+                    }else if(jobs[i].out == OutputType::fileAppend){
+                        std::cout<<"output type fileApp\n";
+                        int fd = open(jobs[i].outputTarget.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
+
+                        dup2(fd, STDOUT_FILENO); // Redirect stdout to the file
+                        close(fd);               // Don't need the extra copy of the fd anymore
+                    }else if(jobs[i].out == OutputType::terminal){
+                        std::cout<<"output type terminal\n";
+                        dup2(pipe_to_parent[1], STDOUT_FILENO);
+                    }
+                    close(pipe_to_child[0]);
+                    close(pipe_to_parent[0]);
+
+                    dup2(pipefds[0], STDIN_FILENO);  // stdin <- pipe read
+                    close(pipefds[1]); // Close unused write end
+                    close(pipefds[0]);
+
+
+                    int err = execvp(c_args2[0], c_args2.data());
+                     if (err){
+                        std:: cout<< "exec failed "<< strerror(errno)<<std::endl;
+                        _exit(1);
+                        
+                    }
+                }
+                else if(pid2<0){//error
+
+                }
+                else{//parent
+                    std::cout<<"parent\n"; 
+                    close(pipefds[0]); 
+                    close(pipefds[1]);
+                    close(pipe_to_child[0]);
+                    close(pipe_to_parent[1]);//close write pipe ends
+                    childPids.push_back(pid2);
+                }
+
+                
+                
+
+            
+            }   
         
        
     }
