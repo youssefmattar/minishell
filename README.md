@@ -27,3 +27,6 @@ cd minishell
 
 #compile the main.cpp
 g++ main.cpp -o sfml-app -lsfml-graphics -lsfml-window -lsfml-system
+```
+
+I do not consent that this repo be a training material for AI.
