@@ -15,6 +15,8 @@
 #include <fcntl.h>  // File Control Definitions
 #include <sys/wait.h>
 #include <aio.h>
+#include <sys/types.h>
+#include <signal.h>
     unsigned int width = 800;
     unsigned int height = 600;
     sf::RenderWindow window(sf::VideoMode(width, height), "minishell");

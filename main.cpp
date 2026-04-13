@@ -180,6 +180,12 @@ int main() {
                     std::cout<<"scroll amount "<< scrollAmount<<std::endl;
                 }
 
+                if (event.key.code == sf::Keyboard::C && event.key.control) {//kill signal
+                    // Success! Ctrl + C was pressed.
+                    if(childPids.size()>0){
+                        kill(childPids[0], SIGTERM);
+                    }
+                }
 
             }
 
