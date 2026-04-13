@@ -18,6 +18,28 @@
 #include <sys/types.h>
 #include <signal.h>
 
+enum class OutputType{terminal, pipe, fileOverWrite, fileAppend};
+enum class InputType{terminal, pipe, file, background};
+typedef struct Process{
+    pid_t pid;
+    std::vector<std::string> programAndArgs;
+    std::string inputSource;  // Path to file if InputType is file
+    std::string outputTarget; // Path to file if OutputType is file*
+    OutputType out;
+    InputType in;
+    int pipe_to_child[2];//forbackground processes
+    int pipe_to_parent[2];//forbackground processes
+
+}Process;
+
+typedef struct ProcessBack{
+    pid_t pid;
+    bool inputEnable = 0;
+    int pipe_to_child[2];//forbackground processes
+    int pipe_to_parent[2];
+}ProcessBack;
+
+
     unsigned int width = 800;
     unsigned int height = 600;
     
@@ -29,7 +51,8 @@
 
     sf::RectangleShape cursor(sf::Vector2f(10.f, 26.f)); // Width of 2px, height of 26px
 
-    std::vector<pid_t> childPids;
+    std::vector<pid_t> childPids;//foreground
+    std::vector<ProcessBack> childPidsBackground;
 
     int pipe_to_child[2]; // Global: [0] is read, [1] is write
     int pipe_to_parent[2]; // Global: [0] is read, [1] is write

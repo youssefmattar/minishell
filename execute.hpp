@@ -36,7 +36,7 @@ std::string getTerminalPath() {
     return path;
 }
 
-
+/*
 enum class OutputType{terminal, pipe, fileOverWrite, fileAppend};
 enum class InputType{terminal, pipe, file};
 typedef struct Process{
@@ -47,7 +47,7 @@ typedef struct Process{
     OutputType out;
     InputType in;
 }Process;
-
+*/
 int pipefds[2];//for |
 void executeSeparatedJobs(std::vector<Process> jobs){
 
@@ -67,7 +67,7 @@ void executeSeparatedJobs(std::vector<Process> jobs){
             // 3. Add the mandatory NULL terminator
             c_args.push_back(nullptr);
 
-            if(jobs[i].out != OutputType::pipe){
+            if(jobs[i].out != OutputType::pipe && jobs[i].in != InputType::background){
                 // --- PARENT DEBUG BLOCK ---
                 std::cout << "\n--- FORKING NEW CHILD ---" << std::endl;
                 std::cout << "Command: " << c_args[0] << std::endl;
@@ -130,6 +130,8 @@ void executeSeparatedJobs(std::vector<Process> jobs){
                     close(pipe_to_parent[1]);//close write pipe ends
                     childPids.push_back(pid);
                 }
+
+                std::cout<<pid<<std::endl;
             } 
             else  if(jobs[i].out == OutputType::pipe && jobs[i+1].in == InputType::pipe){
                 pipe(pipefds);
@@ -237,6 +239,83 @@ void executeSeparatedJobs(std::vector<Process> jobs){
                 
 
             
+            }
+            else if(jobs[i].in == InputType::background){
+                std::cout<<"\nbackground forking---\n";
+                ProcessBack p;
+                p.inputEnable = 0;
+                pipe(jobs[i].pipe_to_child);//init pipes
+                pipe(jobs[i].pipe_to_parent);
+
+                p.pipe_to_child[0] = jobs[i].pipe_to_child[0];
+                p.pipe_to_child[1] = jobs[i].pipe_to_child[1];
+
+                p.pipe_to_parent[0] = jobs[i].pipe_to_parent[0];
+                p.pipe_to_parent[1] = jobs[i].pipe_to_parent[1];
+                fcntl(p.pipe_to_parent[0], F_SETFL, O_NONBLOCK);
+                
+                pid = fork();
+                if(pid == 0){ //child
+
+                    if(jobs[i].out == OutputType::fileOverWrite){
+                        int fd = open(jobs[i].outputTarget.c_str(), O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                            std::cout<<"output type fileOverwrite\n";
+                        dup2(fd, STDOUT_FILENO); // Redirect stdout to the file
+                        close(fd);               // Don't need the extra copy of the fd anymore
+                    }else if(jobs[i].out == OutputType::fileAppend){
+                        std::cout<<"output type fileApp\n";
+                        int fd = open(jobs[i].outputTarget.c_str(), O_WRONLY | O_CREAT | O_APPEND, 0644);
+
+                        dup2(fd, STDOUT_FILENO); // Redirect stdout to the file
+                        close(fd);               // Don't need the extra copy of the fd anymore
+                    }else if(jobs[i].out == OutputType::terminal){
+                        std::cout<<"output type terminal\n";
+                        dup2(jobs[i].pipe_to_parent[1], STDOUT_FILENO);
+                        close(jobs[i].pipe_to_parent[1]);//not needed any more
+                    }
+                    
+                    dup2(jobs[i].pipe_to_child[0], STDIN_FILENO);
+                    close(jobs[i].pipe_to_child[0]); //the file descriptor is now the STDIN no need to keep it
+                    
+                    close(jobs[i].pipe_to_child[1]);//will not write
+                    close(jobs[i].pipe_to_parent[0]);//will not read
+
+
+                    
+                    // 4. Use .data() to get the char** that execvp wants
+                    int err = execvp(c_args[0], c_args.data());
+                    if (err){
+                        std:: cout<< "exec failed "<< strerror(errno)<<std::endl;
+                        _exit(1);
+                    }
+                }
+                else if(pid<0){//error
+                    std::cout<<"error";
+                }
+                else { /* parent process */
+                    p.pid = pid;
+                    
+                    close(p.pipe_to_child[0]);
+                    close(p.pipe_to_parent[1]);
+                    close(jobs[i].pipe_to_child[0]);
+                    close(jobs[i].pipe_to_parent[1]);
+                   
+                    
+                    childPidsBackground.push_back(p);
+                    std::cout<<"parent\n"; 
+                    
+                   displayString += "background process created [" + std::to_string(childPidsBackground.size() - 1)
+                    + "] pid: " + std::to_string(pid) + "\n";
+                    text.setString(displayString);
+
+                    displayString += initial;
+                    displayString += 'c';
+                    text.setString(displayString);
+                    cursor.setPosition(text.findCharacterPos(displayString.length()));
+                    displayString.pop_back();
+
+                    
+                }
             }   
         
        
@@ -273,6 +352,11 @@ std::vector<Process> separateJobs(std::vector<std::string> tokens){
             // Reset for the next process in the pipe chain
             p = Process(); 
             p.in = InputType::pipe;
+        }
+        else if(tokens[i] == "&"){
+            p.in = InputType::background;
+            job.push_back(p);
+            p = Process();//for next job
         }
         else {
             p.programAndArgs.push_back(tokens[i]);

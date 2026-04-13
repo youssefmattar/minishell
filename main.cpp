@@ -110,6 +110,71 @@ int main() {
             }
         }
 
+        for(int i = 0; i<childPidsBackground.size(); i++){//read data from background processes
+           
+            // 1. Define the buffer and the control block
+
+            char buffer[256];
+            // read() will now return -1 immediately if there is no data, 
+            // instead of waiting (blocking).
+            int bytesRead = read(childPidsBackground[i].pipe_to_parent[0], buffer, sizeof(buffer) - 1);
+
+            if (bytesRead > 0) {
+                buffer[bytesRead] = '\0'; // Null-terminate the string
+                displayString += buffer;  // Only append if we actually got something!
+                displayString += initial;
+            
+                text.setString(displayString);
+                cursor.setPosition(text.findCharacterPos(displayString.length()));
+               
+                //std::cout<<" readta" <<readdta<<std::endl;
+            } 
+        }
+
+        for(int i = 0; i<childPidsBackground.size(); i++){//remove terminated child process from vector
+            int status;
+            pid_t result = waitpid(childPidsBackground[i].pid, &status, WNOHANG); 
+
+            if (result == 0) {
+                // Child is still running! Proceed with SFML events/rendering.
+            } else if (result > 0) {
+                // Child just finished. Handle it here.
+                
+                std::cout<< "background child terminated "<<childPidsBackground[i].pid<<std::endl;
+
+                char buffer[128];
+                // read() will now return -1 immediately if there is no data, 
+                // instead of waiting (blocking).
+
+                //finish unread data
+                int bytesRead = 0;
+                do{
+
+                    bytesRead = read(childPidsBackground[i].pipe_to_parent[0], buffer, sizeof(buffer) - 1);
+                    if(bytesRead > 0){
+                        buffer[bytesRead] = '\0'; // Null-terminate the string
+                        displayString += buffer;  // Only append if we actually got something!
+
+                        cursor.setPosition(text.findCharacterPos(displayString.length()));
+                    }
+                    //std::cout<<" readta" <<readdta<<std::endl;
+                
+                }while(bytesRead > 0);
+
+                
+                displayString+=std::string("background child terminated ")+ std::to_string(childPidsBackground[i].pid);
+                displayString += "\n";
+                //displayString += initial;
+            
+                text.setString(displayString);
+                cursor.setPosition(text.findCharacterPos(displayString.length()));
+                childPidsBackground.erase(childPidsBackground.begin() + i);
+                
+                
+                break;
+            }
+        }
+
         /* read from the pipe */
         // 1. Define the buffer and the control block
 
@@ -127,6 +192,8 @@ int main() {
             displayString.pop_back();//delete old cursor
             cursor.setPosition(text.findCharacterPos(displayString.length()));
         }
+
+        
 
         sf::Event event;
         
@@ -206,7 +273,7 @@ int main() {
                     if(childPids.size()==0){
                         parseExecute(command);
                     }
-                    else{
+                    else if(childPids.size() == 1){
                         char nl = '\n';
                         write(pipe_to_child[1], &nl, 1);
                     }
