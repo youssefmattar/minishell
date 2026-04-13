@@ -86,6 +86,10 @@ int main() {
                 // Child just finished. Handle it here.
                 
                 std::cout<< "child terminated "<<childPids[i]<<std::endl;
+                close(pipe_to_child[0]);
+                close(pipe_to_child[1]);
+                close(pipe_to_parent[0]);
+                close(pipe_to_parent[1]);
                 childPids.erase(childPids.begin() + i);
                 if(childPids.size() < 1){//not to write initial more than one time
                     displayString+=initial;
@@ -94,17 +98,7 @@ int main() {
                     displayString.pop_back();//delete old cursor
                     cursor.setPosition(text.findCharacterPos(displayString.length()));
                 
-                    if (pipe(pipe_to_child) == -1) {
-                        perror("pipe failed");
-                        exit(1);
-                    }
                     
-
-                    if(pipe(pipe_to_parent)==-1){
-                        perror("pipe failed");
-                        exit(1);
-                    }
-                    fcntl(pipe_to_parent[0], F_SETFL, O_NONBLOCK);
                 }
                 break;
             }
@@ -142,7 +136,7 @@ int main() {
                 
                 std::cout<< "background child terminated "<<childPidsBackground[i].pid<<std::endl;
 
-                char buffer[128];
+                char buffer[2];
                 // read() will now return -1 immediately if there is no data, 
                 // instead of waiting (blocking).
 
@@ -164,10 +158,16 @@ int main() {
                 
                 displayString+=std::string("background child terminated ")+ std::to_string(childPidsBackground[i].pid);
                 displayString += "\n";
-                //displayString += initial;
+                displayString += initial;
             
                 text.setString(displayString);
                 cursor.setPosition(text.findCharacterPos(displayString.length()));
+
+
+                close(childPidsBackground[i].pipe_to_child[0]);
+                close(childPidsBackground[i].pipe_to_child[1]);
+                close(childPidsBackground[i].pipe_to_parent[0]);
+                close(childPidsBackground[i].pipe_to_parent[1]);
                 childPidsBackground.erase(childPidsBackground.begin() + i);
                 
                 
@@ -252,6 +252,14 @@ int main() {
                     if(childPids.size()>0){
                         kill(childPids[0], SIGTERM);
                     }
+
+                    //handle processes that was in background
+                    for(int i = 0; i<childPidsBackground.size(); i++){
+
+                        if(childPidsBackground[i].inputEnable == 1){
+                            kill(childPidsBackground[i].pid, SIGTERM);
+                        }
+                    }
                 }
 
             }
@@ -297,6 +305,14 @@ int main() {
                     // SEND THIS CHARACTER TO CHILD (Step 2)
                     if(childPids.size()>0){//dont add bad data to pipe
                         write(pipe_to_child[1], &c, 1);
+                    }
+
+                    //write input to background process if came back to foreground
+                    for(int i = 0; i<childPidsBackground.size(); i++){
+
+                        if(childPidsBackground[i].inputEnable == 1){
+                            write(childPidsBackground[i].pipe_to_child[1], &c, 1);
+                        }
                     }
                     
                      

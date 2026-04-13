@@ -11,7 +11,7 @@ int main() {
         std::cout << "Message #" << count << ": Still running..." << std::endl;
         
         // Pause the current thread for exactly 1 second
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::this_thread::sleep_for(std::chrono::seconds(5));
         
         count++;
     }

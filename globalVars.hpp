@@ -29,6 +29,7 @@ typedef struct Process{
     InputType in;
     int pipe_to_child[2];//forbackground processes
     int pipe_to_parent[2];//forbackground processes
+    bool running = 0;
 
 }Process;
 
@@ -37,6 +38,7 @@ typedef struct ProcessBack{
     bool inputEnable = 0;
     int pipe_to_child[2];//forbackground processes
     int pipe_to_parent[2];
+    bool running = 0;
 }ProcessBack;
 
 

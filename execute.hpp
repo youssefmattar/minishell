@@ -67,7 +67,20 @@ void executeSeparatedJobs(std::vector<Process> jobs){
             // 3. Add the mandatory NULL terminator
             c_args.push_back(nullptr);
 
-            if(jobs[i].out != OutputType::pipe && jobs[i].in != InputType::background){
+            if(jobs[i].out != OutputType::pipe && jobs[i].in != InputType::background && jobs[i].running == 0 
+                && jobs[i].programAndArgs.size() > 0){
+                jobs[i].running = 1;
+                if (pipe(pipe_to_child) == -1) {
+                    perror("pipe failed");
+                    exit(1);
+                }
+                
+
+                if(pipe(pipe_to_parent)==-1){
+                    perror("pipe failed");
+                    exit(1);
+                }
+                fcntl(pipe_to_parent[0], F_SETFL, O_NONBLOCK);
                 // --- PARENT DEBUG BLOCK ---
                 std::cout << "\n--- FORKING NEW CHILD ---" << std::endl;
                 std::cout << "Command: " << c_args[0] << std::endl;
@@ -133,7 +146,11 @@ void executeSeparatedJobs(std::vector<Process> jobs){
 
                 std::cout<<pid<<std::endl;
             } 
-            else  if(jobs[i].out == OutputType::pipe && jobs[i+1].in == InputType::pipe){
+            else  if(jobs[i].out == OutputType::pipe && jobs[i+1].in == InputType::pipe && jobs[i].running == 0 
+                && jobs[i].programAndArgs.size() > 0){
+                jobs[i].running = 1;
+                
+                
                 pipe(pipefds);
                 // 1. Create a temporary vector to hold the pointers
                 std::vector<char*> c_args2;
@@ -240,9 +257,11 @@ void executeSeparatedJobs(std::vector<Process> jobs){
 
             
             }
-            else if(jobs[i].in == InputType::background){
+            else if(jobs[i].in == InputType::background && jobs[i].running == 0 && jobs[i].programAndArgs.size() > 0){
                 std::cout<<"\nbackground forking---\n";
                 ProcessBack p;
+                jobs[i].running = 1;
+                p.running = 1;
                 p.inputEnable = 0;
                 pipe(jobs[i].pipe_to_child);//init pipes
                 pipe(jobs[i].pipe_to_parent);
@@ -252,7 +271,7 @@ void executeSeparatedJobs(std::vector<Process> jobs){
 
                 p.pipe_to_parent[0] = jobs[i].pipe_to_parent[0];
                 p.pipe_to_parent[1] = jobs[i].pipe_to_parent[1];
-                fcntl(p.pipe_to_parent[0], F_SETFL, O_NONBLOCK);
+               
                 
                 pid = fork();
                 if(pid == 0){ //child
@@ -294,11 +313,9 @@ void executeSeparatedJobs(std::vector<Process> jobs){
                 }
                 else { /* parent process */
                     p.pid = pid;
-                    
+                    fcntl(p.pipe_to_parent[0], F_SETFL, O_NONBLOCK);
                     close(p.pipe_to_child[0]);
                     close(p.pipe_to_parent[1]);
-                    close(jobs[i].pipe_to_child[0]);
-                    close(jobs[i].pipe_to_parent[1]);
                    
                     
                     childPidsBackground.push_back(p);
@@ -435,10 +452,44 @@ int parseExecute(std::string commandf){
 
         }
         else if(part == "jobs"&& i == 0){
-
+            for(int i = 0; i<childPidsBackground.size(); i++){
+                displayString += std::string("[") + std::to_string(i) + 
+                std::string("] process with id: ") + std::to_string(childPidsBackground[i].pid) + 
+                std::string("\n");
+            }
+            displayString += initial; 
+            text.setString(displayString);
         }
         else if(part == "fg" && i == 0){
-
+            ss >> part ;
+            if(part.length()>1){
+                part.erase(0, 1);
+                try{
+                    int index = std::stoi(part);
+                    if (index >= 0 && index < (int)childPidsBackground.size()) {
+                        
+                        childPidsBackground[index].inputEnable = 1;
+                    }
+                    else{
+                        displayString += "error: not a valid number\n";
+                    }
+                }
+                catch (const std::invalid_argument& e) {
+                    displayString += "error: not a valid number\n";
+                } 
+                catch (const std::out_of_range& e) {
+                    displayString += "error: number too large\n";
+                }
+                catch (const std::exception& e) {
+                    displayString += "error: invalid job format\n";
+                }
+                catch(...){
+                    displayString += "error invalid input\n";
+                    
+                }
+                displayString += initial; 
+                text.setString(displayString);
+            }
         }
         else{
             
